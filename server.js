@@ -47,10 +47,7 @@ app.delete("/api/items/:id", async (c) => {
   return c.json({ success: true });
 });
 
-// 静的ファイルの配信（最後に書く）
-// client.js など特定のファイルを個別に許可
 app.get("/client.js", serveStatic({ path: "./public/client.js" }));
-// ルートアクセスで index.html を返す
 app.get("/", serveStatic({ path: "./public/index.html" }));
 
 Deno.serve(app.fetch);

@@ -8,14 +8,19 @@ const app = {
     searchTag: '',
     form: { id: null, name: '', count: 1, image: '', tagInput: '' },
 
-    // 初期化
-    init() {
-        console.log("App mounted!");
+    // 1. 初期化処理：ページを開いたときに保存されたユーザー名を確認
+    async init() {
+        const savedUser = localStorage.getItem("username");
+        if (savedUser) {
+            this.user.username = savedUser;
+            this.isLoggedIn = true;
+            this.fetchItems(); // 保存されていたら即座にデータを読み込む
+            console.log("セッションを復元しました:", savedUser);
+        }
     },
 
-    // ユーザー登録
+    // 2. ユーザー登録
     async register() {
-        console.log("Registering:", this.user.username);
         this.message = "登録中...";
         try {
             const res = await fetch("/api/register", {
@@ -36,7 +41,7 @@ const app = {
         }
     },
 
-    // ログイン
+    // 3. ログイン：成功時にlocalStorageへ保存
     async login() {
         console.log("Logging in:", this.user.username);
         this.message = "ログイン中...";
@@ -50,6 +55,8 @@ const app = {
             if (res.ok) {
                 this.isLoggedIn = true;
                 this.message = "";
+                // ブラウザにユーザー名を保存
+                localStorage.setItem("username", this.user.username);
                 this.fetchItems();
             } else {
                 this.message = data.msg || "ログインに失敗しました";
@@ -59,20 +66,23 @@ const app = {
         }
     },
 
+    // 4. ログアウト：保存情報を消去
     logout() {
         this.isLoggedIn = false;
+        localStorage.removeItem("username"); // ブラウザから削除
         this.user = { username: '', password: '' };
         this.message = "";
     },
 
-    // アイテム取得
+    // 5. アイテム取得：自分のデータだけをリクエスト
     async fetchItems() {
         const tag = this.searchTag.replace('#', '').trim();
-        const res = await fetch(`/api/items?tag=${tag}`);
+        // 自分のユーザー名をサーバーに伝える
+        const res = await fetch(`/api/items?user=${this.user.username}&tag=${tag}`);
         this.items = await res.json();
     },
 
-    // アイテム保存
+    // 6. アイテム保存：ユーザー名をデータに含める
     async saveItem() {
         if (!this.form.name) return alert("名前を入力してください");
 
@@ -86,7 +96,8 @@ const app = {
             name: this.form.name,
             count: this.form.count,
             image: this.form.image,
-            tags: tags 
+            tags: tags,
+            username: this.user.username // ★誰のアイテムかを追加
         };
 
         await fetch("/api/items", {
@@ -99,31 +110,24 @@ const app = {
         this.fetchItems();
     },
 
+    // --- 画像リサイズ ---
     uploadImage(e) {
         const file = e.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = (event) => {
             const img = new Image();
             img.onload = () => {
-                // --- リサイズ処理の開始 ---
                 const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 200; // 最大幅を200pxに設定（KV制限に収まりやすいサイズ）
+                const MAX_WIDTH = 200;
                 const scale = MAX_WIDTH / img.width;
-                
                 canvas.width = MAX_WIDTH;
                 canvas.height = img.height * scale;
-
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-                // 画質を0.7(70%)に落としてJPEG形式で出力（容量をさらに節約）
                 const resizedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                
                 this.form.image = resizedBase64;
                 console.log("Resized image size:", Math.round(resizedBase64.length / 1024), "KB");
-                // --- リサイズ処理の終了 ---
             };
             img.src = event.target.result;
         };
